@@ -110,4 +110,77 @@ public class AiController {
         return ResponseEntity.status(200).body(Map.of("arabicPhrase", arabicPhrase, "japaneseBridge", explanation));
     }
 
+    // Extra Endpoint: 9 outOf to convert informal Japanese into polite/business Japanese
+    @PostMapping("/keigo-converter")
+    public ResponseEntity<Map<String, String>> convertToKeigo(@RequestBody Map<String, String> body) {
+        String sentence = body.get("sentence");
+        if (sentence == null || sentence.trim().isEmpty()) {
+            return ResponseEntity.status(400).body(Map.of("error", "Sentence cannot be empty"));
+        }
+
+        String prompt = "Convert the following Japanese sentence into both Sonkeigo (Respectful Language) and Kenjougo (Humble Language): '" + sentence + "'. " +
+                "Provide: 1) Sonkeigo version with English translation, 2) Kenjougo version with English translation, " +
+                "3) A brief explanation of when to use each in a business setting.";
+
+        String result = openRouterService.askAi(prompt);
+        return ResponseEntity.status(200).body(Map.of("originalSentence", sentence, "keigoBreakdown", result));
+    }
+
+    // Extra Endpoint: 10 outOf Kanji Radical Breakdown Generator
+    @GetMapping("/kanji-radicals")
+    public ResponseEntity<Map<String, String>> getKanjiRadicals(@RequestParam String kanji) {
+        String prompt = "Break down the Kanji character '" + kanji + "' into its component radicals. " +
+                "Return ONLY the radicals, their symbols, and their meanings. " +
+                "Do not include any mnemonic story, intro, or extra commentary.";
+
+        String radicals = openRouterService.askAi(prompt);
+        return ResponseEntity.ok(Map.of("kanji", kanji, "radicals", radicals));
+    }
+
+    // Extra Endpoint: 11 JLPT Study Plan Generator
+    @GetMapping("/study-plan")
+    public ResponseEntity<Map<String, String>> generateStudyPlan(
+            @RequestParam(defaultValue = "N5") String level,
+            @RequestParam(defaultValue = "4") Integer weeks,
+            @RequestParam(defaultValue = "grammar") String focus) {
+
+        String prompt = "Create a structured " + weeks + "-week study plan for a student preparing for JLPT " + level + ". " +
+                "The student wants to focus especially on '" + focus + "'. Provide weekly actionable goals, recommended daily habits, and practice strategies.";
+
+        String plan = openRouterService.askAi(prompt);
+        return ResponseEntity.status(200).body(Map.of("level", level, "durationWeeks", String.valueOf(weeks), "focusArea", focus, "studyPlan", plan));
+    }
+
+    // Extra Endpoint: 12 Reading Comprehension Generator
+    @GetMapping("/reading-passage")
+    public ResponseEntity<Map<String, String>> generateReadingPassage(
+            @RequestParam(defaultValue = "N5") String level,
+            @RequestParam(defaultValue = "daily life") String topic) {
+
+        String prompt = "Write a short 100-word Japanese reading passage for JLPT " + level + " students about '" + topic + "'. " +
+                "Provide: 1) Japanese text with Furigana in parentheses, 2) English translation, " +
+                "3) 2 multiple-choice comprehension questions with an answer key at the end.";
+
+        String passage = openRouterService.askAi(prompt);
+        return ResponseEntity.status(200).body(Map.of("level", level, "topic", topic, "content", passage));
+    }
+
+    // Extra Endpoint: 13 Instructor Lesson Plan Builder
+    @PostMapping("/lesson-plan")
+    public ResponseEntity<Map<String, String>> generateLessonPlan(@RequestBody Map<String, String> body) {
+        String topic = body.get("topic");
+        String level = body.getOrDefault("level", "N5");
+
+        if (topic == null || topic.trim().isEmpty()) {
+            return ResponseEntity.status(400).body(Map.of("error", "Topic cannot be empty"));
+        }
+
+        String prompt = "Act as an expert curriculum designer. Create a 45-minute Japanese lesson plan for teaching '" + topic + "' at JLPT " + level + " level. " +
+                "Include: 1) Warm-up activity (5 min), 2) Grammar/Vocab presentation (15 min), " +
+                "3) Interactive practice activity (15 min), 4) Wrap-up quiz (10 min).";
+
+        String lessonPlan = openRouterService.askAi(prompt);
+        return ResponseEntity.status(200).body(Map.of("topic", topic, "level", level, "lessonPlan", lessonPlan));
+    }
+
 }
