@@ -21,7 +21,6 @@ public class EnrollmentService {
     private final CourseRepository courseRepository;
     private final CertificateRepository certificateRepository;
     private final InstructorRepository instructorRepository;
-    private final EmailService emailService;
     private final AdminService adminService;
 
     // to get all enrollments
@@ -60,24 +59,6 @@ public class EnrollmentService {
         enrollment.setEnrolledAt(LocalDateTime.now());
         enrollmentRepository.save(enrollment);
 
-        // Fetch Instructor for email display
-        Instructor instructor = instructorRepository.findInstructorById(course.getInstructorId());
-        String instructorName = (instructor != null) ? instructor.getName() : "Jisr Sensei";
-
-        // Send Course Enrollment Email
-        Map<String, Object> variables = Map.of(
-                "userName", user.getName(),
-                "courseTitle", course.getTitle(),
-                "instructorName", instructorName,
-                "courseLevel", course.getLevel()
-        );
-
-        emailService.sendHtmlEmailWithLogo(
-                user.getEmail(),
-                "Course Registration Complete！ Enrollment Confirmed: " + course.getTitle(),
-                "enrollment-email",
-                variables
-        );
     }
 
     // to update an enrollment
@@ -161,26 +142,6 @@ public class EnrollmentService {
             cert.setCertificateNumber(certNum);
             cert.setIssuedAt(LocalDateTime.now());
             certificateRepository.save(cert);
-
-            Enrollment enrollment = enrollmentRepository.findEnrollmentById(enrollmentId);
-            User user = userRepository.findUserById(enrollment.getUserId());
-            Course course = courseRepository.findCourseById(enrollment.getCourseId());
-
-            if (user != null && course != null) {
-                // Send Certificate Email
-                Map<String, Object> variables = Map.of(
-                        "userName", user.getName(),
-                        "courseTitle", course.getTitle(),
-                        "certificateNumber", certNum
-                );
-
-                emailService.sendHtmlEmailWithLogo(
-                        user.getEmail(),
-                        "おめでとうございます！ Your Course Certificate: " + certNum,
-                        "certificate-email",
-                        variables
-                );
-            }
         }
     }
 }

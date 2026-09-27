@@ -15,7 +15,6 @@ public class UserService {
 
     private final UserRepository userRepository;
     private final AdminService adminService;
-    private final EmailService emailService;
 
     // to get all users
     public List<User> getAllUsers() {
@@ -36,31 +35,6 @@ public class UserService {
     // to add a user
     public void addUser(User user) {
         userRepository.save(user);
-
-//        // Send Welcome Email
-//        Map<String, Object> variables = Map.of(
-//                "userName", user.getName(),
-//                "japaneseLevel", user.getJapaneseLevel(),
-//                "learningGoal", user.getLearningGoal()
-//        );
-//
-//        emailService.sendHtmlEmailWithLogo(
-//                user.getEmail(),
-//                "ようこそ！ Welcome to Jisr Nihongo Platform",
-//                "welcome-email",
-//                variables
-//        );
-        Map<String, Object> variables = new java.util.HashMap<>();
-        variables.put("userName", user.getName() != null ? user.getName() : "Student");
-        variables.put("japaneseLevel", user.getJapaneseLevel() != null ? user.getJapaneseLevel() : "N5");
-        variables.put("learningGoal", user.getLearningGoal() != null ? user.getLearningGoal() : "Learn Japanese");
-
-        emailService.sendHtmlEmailWithLogo(
-                user.getEmail(),
-                "ようこそ！ Welcome to Jisr Nihongo Platform",
-                "welcome-email",
-                variables
-        );
     }
 
     // to update a user
