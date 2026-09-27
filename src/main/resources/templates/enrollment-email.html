@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Enrollment Confirmed - Jisr Nihongo Platform</title>
+    <style>
+        body { font-family: 'Segoe UI', Arial, sans-serif; background-color: #f1f5f9; margin: 0; padding: 20px; }
+        .card { max-width: 580px; margin: 0 auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.08); }
+        .header { background: #ffffff; text-align: center; padding: 25px; border-bottom: 3px solid #e2e8f0; }
+        .logo { max-width: 260px; height: auto; }
+        .content { padding: 30px; color: #1e293b; line-height: 1.6; }
+        .course-box { background: #f0f9ff; border-left: 4px solid #0284c7; padding: 15px 20px; margin: 20px 0; border-radius: 0 8px 8px 0; }
+        .course-title { margin: 4px 0 10px 0; color: #0c4a6e; }
+        .row { display: inline-block; width: 45%; font-size: 14px; color: #64748b; }
+        .footer { background: #f8fafc; text-align: center; padding: 15px; font-size: 12px; color: #64748b; }
+    </style>
+</head>
+<body>
+<div class="card">
+    <div class="header">
+        <img src="cid:jisrLogo" alt="Jisr Nihongo Platform" class="logo" />
+    </div>
+    <div class="content">
+        <h2>受講登録完了！ Enrollment Confirmed</h2>
+        <p>Konnichiwa <strong th:text="${userName}">Student</strong>,</p>
+        <p>You have successfully enrolled in a new course!</p>
+        <div class="course-box">
+            <span class="row">Course:</span>
+            <strong class="course-title" th:text="${courseTitle}">Japanese N5 Course</strong><br/>
+            <span class="row">Level:</span>
+            <strong th:text="${courseLevel}">N5</strong><br/>
+            <span class="row">Instructor:</span>
+            <strong th:text="${instructorName}">Jisr Sensei</strong>
+        </div>
+        <p>You can now access your lessons and start learning!</p>
+        <p>Sensei will guide you through every lesson. Good luck, 頑張ってください (Ganbatte kudasai)!</p>
+    </div>
+    <div class="footer">
+        © 2026 Jisr 日本語プラットフォーム | Connecting Japanese teachers with learners in Saudi Arabia
+    </div>
+</div>
+</body>
+</html>

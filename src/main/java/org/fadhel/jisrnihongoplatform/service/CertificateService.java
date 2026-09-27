@@ -2,16 +2,22 @@ package org.fadhel.jisrnihongoplatform.service;
 
 
 import lombok.RequiredArgsConstructor;
+import org.fadhel.jisrnihongoplatform.event.CertificateIssuedEvent;
 import org.fadhel.jisrnihongoplatform.exception.ApiException;
 import org.fadhel.jisrnihongoplatform.model.Certificate;
+import org.fadhel.jisrnihongoplatform.model.Course;
 import org.fadhel.jisrnihongoplatform.model.Enrollment;
 import org.fadhel.jisrnihongoplatform.model.User;
 import org.fadhel.jisrnihongoplatform.repository.CertificateRepository;
+import org.fadhel.jisrnihongoplatform.repository.CourseRepository;
 import org.fadhel.jisrnihongoplatform.repository.EnrollmentRepository;
 import org.fadhel.jisrnihongoplatform.repository.UserRepository;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 @Service
@@ -21,7 +27,9 @@ public class CertificateService {
     private final CertificateRepository certificateRepository;
     private final EnrollmentRepository enrollmentRepository;
     private final UserRepository userRepository;
+    private final CourseRepository courseRepository;
     private final AdminService adminService;
+    private final ApplicationEventPublisher eventPublisher;
 
 
     // to get all certificates (admin-only)
@@ -44,6 +52,7 @@ public class CertificateService {
     }
 
     // to add a certificate (admin-only)
+    @Transactional
     public void addCertificate(Certificate certificate, Integer adminId) {
         adminService.verifyAdmin(adminId);
 
@@ -63,6 +72,18 @@ public class CertificateService {
         }
 
         certificateRepository.save(certificate);
+
+        // to notify the learner of the manually issued certificate
+        User user = userRepository.findUserById(enrollment.getUserId());
+        Course course = courseRepository.findCourseById(enrollment.getCourseId());
+        if (user != null && course != null) {
+            eventPublisher.publishEvent(new CertificateIssuedEvent(
+                    user.getName(),
+                    user.getEmail(),
+                    course.getTitle(),
+                    certificate.getCertificateNumber(),
+                    certificate.getIssuedAt().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"))));
+        }
     }
 
     // to update a certificate (admin-only)

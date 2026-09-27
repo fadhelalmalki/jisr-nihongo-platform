@@ -28,12 +28,12 @@ public class Enrollment {
     @Column(nullable = false)
     private Integer courseId;
 
-    @NotEmpty(message = "Status cannot be empty")
+    //@NotEmpty(message = "Status cannot be empty")
     @Pattern(regexp = "^(ACTIVE|COMPLETED|CANCELLED)$", message = "Status must be ACTIVE, COMPLETED, or CANCELLED")
     @Column(nullable = false)
     private String status;
 
-    @NotNull(message = "Progress is required")
+    //@NotNull(message = "Progress is required")
     @Min(0)
     @Max(100)
     @Column(nullable = false)

@@ -1,13 +1,15 @@
 package org.fadhel.jisrnihongoplatform.service;
 
 import lombok.RequiredArgsConstructor;
+import org.fadhel.jisrnihongoplatform.event.UserRegisteredEvent;
 import org.fadhel.jisrnihongoplatform.exception.ApiException;
 import org.fadhel.jisrnihongoplatform.model.User;
 import org.fadhel.jisrnihongoplatform.repository.UserRepository;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -15,6 +17,7 @@ public class UserService {
 
     private final UserRepository userRepository;
     private final AdminService adminService;
+    private final ApplicationEventPublisher eventPublisher;
 
     // to get all users
     public List<User> getAllUsers() {
@@ -33,8 +36,16 @@ public class UserService {
     }
 
     // to add a user
+    @Transactional
     public void addUser(User user) {
-        userRepository.save(user);
+
+        User savedUser = userRepository.save(user);
+
+        eventPublisher.publishEvent(new UserRegisteredEvent(
+                savedUser.getName(),
+                savedUser.getEmail(),
+                savedUser.getJapaneseLevel(),
+                savedUser.getLearningGoal()));
     }
 
     // to update a user

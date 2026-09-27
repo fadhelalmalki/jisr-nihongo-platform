@@ -61,6 +61,11 @@
 - Public verification endpoint — validate any certificate number without authentication
 - One certificate per enrollment, guaranteed by a unique constraint
 
+**Email notifications** (Gmail + Thymeleaf)
+- Welcome email on registration, confirmation on enrollment, and the certificate on issuance
+- Sent after the database transaction commits, on a background thread, so requests never block on SMTP
+- A delivery failure can never fail the originating API call
+
 **Instructors**
 - Instructor profiles with a verified freelance teaching certificate number
 - Endpoint to retrieve a specific instructor's verified licence details
@@ -129,11 +134,19 @@ src/main/java/org/fadhel/jisrnihongoplatform/
 ├── model/                               # JPA entities — 8 tables
 │   ├── Admin.java  Certificate.java  Course.java  Enrollment.java
 │   └── Instructor.java  Lesson.java  Review.java  User.java
+├── config/
+│   └── AsyncConfig.java                   # @EnableAsync + the emailTaskExecutor thread pool
+├── event/                                 # Records published by services after a successful write
+│   ├── CertificateIssuedEvent.java
+│   ├── EnrollmentCreatedEvent.java
+│   └── UserRegisteredEvent.java
 ├── repository/                          # Spring Data JPA repositories (8)
 └── service/                             # Business logic + validation
     ├── AdminService.java                 # verifyAdmin() — the authorization check
     ├── CertificateService.java
     ├── CourseService.java
+    ├── EmailEventListener.java           # @TransactionalEventListener(AFTER_COMMIT) + @Async
+    ├── EmailService.java                 # Thymeleaf rendering + Gmail delivery
     ├── EnrollmentService.java            # progress tracking + auto certificate issuance
     ├── InstructorService.java
     ├── LessonService.java
@@ -404,6 +417,38 @@ All settings live in `src/main/resources/application.properties`. Spring Boot's 
 | `spring.web.error.include-stacktrace` | `SPRING_WEB_ERROR_INCLUDE_STACKTRACE` | `always` | **Leaks full stack traces to clients** — set `never` outside development |
 | `openrouter.api.key` | `OPENROUTER_API_KEY` | `OPENROUTER_API_KEY` (placeholder) | OpenRouter bearer token for the AI endpoints |
 | `openrouter.api.url` | `OPENROUTER_API_URL` | `https://openrouter.ai/api/v1/chat/completions` | OpenRouter chat-completions endpoint |
+| `app.mail.enabled` | `MAIL_ENABLED` | `true` | Master switch for all outbound email — set `false` to disable it entirely (tests, CI) |
+| `app.mail.from` | `MAIL_FROM` | `spring.mail.username` | The `From` address on every email |
+| `spring.mail.host` | `SPRING_MAIL_HOST` | `smtp.gmail.com` | Gmail SMTP host |
+| `spring.mail.port` | `MAIL_PORT` | `587` | SMTP port — `587` for STARTTLS, `465` for SSL |
+| `spring.mail.username` | `MAIL_USERNAME` | *(empty)* | Sending Gmail account — **required**, no default |
+| `spring.mail.password` | `MAIL_PASSWORD` | *(empty)* | **16-character Google App Password**, not the account password |
+| `spring.thymeleaf.cache` | `THYMELEAF_CACHE` | `false` | Caches parsed templates — enable in production |
+
+### Email notifications
+
+Transactional emails are sent from Gmail with Thymeleaf-rendered HTML templates. Three events trigger a send:
+
+| Event | Triggered by | Template |
+|---|---|---|
+| `UserRegisteredEvent` | `POST /api/v1/users` | `welcome-email.html` |
+| `EnrollmentCreatedEvent` | `POST /api/v1/enrollments` | `enrollment-email.html` |
+| `CertificateIssuedEvent` | Progress reaching 100%, or `POST /api/v1/certificates` | `certificate-email.html` |
+
+Services publish these events inside a transaction; `EmailEventListener` handles them with `@TransactionalEventListener(AFTER_COMMIT)` on a dedicated `emailTaskExecutor` thread pool. Consequences worth knowing:
+
+- **Requests never block on SMTP.** Sending happens after the database transaction commits, on a background thread.
+- **A mail failure can never fail your API call.** Exceptions are caught and logged.
+- **A rolled-back transaction sends nothing.** If the commit fails, no email goes out.
+- **Missing credentials degrade quietly.** With no `MAIL_PASSWORD` the service logs a warning and skips; with `MAIL_ENABLED=false` the listener bean is not created at all.
+
+To send real email, obtain a Google App Password from the Gmail account (Google Account → Security → 2-Step Verification → App passwords) and start the app with it:
+
+```bash
+MAIL_PASSWORD=your-16-char-app-password ./mvnw spring-boot:run
+```
+
+Templates live in `src/main/resources/templates/`. The logo is attached inline as `cid:jisrLogo` from `src/main/resources/static/images/logo.jpg`.
 
 ### About `ddl-auto=create-drop`
 

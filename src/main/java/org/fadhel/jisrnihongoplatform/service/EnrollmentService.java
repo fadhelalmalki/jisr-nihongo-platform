@@ -2,14 +2,18 @@ package org.fadhel.jisrnihongoplatform.service;
 
 
 import lombok.RequiredArgsConstructor;
+import org.fadhel.jisrnihongoplatform.event.CertificateIssuedEvent;
+import org.fadhel.jisrnihongoplatform.event.EnrollmentCreatedEvent;
 import org.fadhel.jisrnihongoplatform.exception.ApiException;
 import org.fadhel.jisrnihongoplatform.model.*;
 import org.fadhel.jisrnihongoplatform.repository.*;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -22,6 +26,7 @@ public class EnrollmentService {
     private final CertificateRepository certificateRepository;
     private final InstructorRepository instructorRepository;
     private final AdminService adminService;
+    private final ApplicationEventPublisher eventPublisher;
 
     // to get all enrollments
     public List<Enrollment> getAllEnrollments() {
@@ -40,6 +45,7 @@ public class EnrollmentService {
     }
 
     // to add an enrollment
+    @Transactional
     public void enrollUser(Enrollment enrollment) {
 
         User user = userRepository.findUserById(enrollment.getUserId());
@@ -59,21 +65,36 @@ public class EnrollmentService {
         enrollment.setEnrolledAt(LocalDateTime.now());
         enrollmentRepository.save(enrollment);
 
+        Instructor instructor = instructorRepository.findInstructorById(course.getInstructorId());
+
+        eventPublisher.publishEvent(new EnrollmentCreatedEvent(
+                user.getName(),
+                user.getEmail(),
+                course.getTitle(),
+                course.getLevel(),
+                instructor != null ? instructor.getName() : "Jisr Sensei"));
+
     }
 
     // to update an enrollment
+    @Transactional
     public void updateProgress(Integer enrollmentId, Integer progress) {
         Enrollment enrollment = enrollmentRepository.findEnrollmentById(enrollmentId);
         if (enrollment == null) {
             throw new ApiException("Enrollment not found");
         }
         enrollment.setProgress(progress);
-        if (progress >= 100) {
+
+        boolean courseCompleted = progress >= 100;
+        if (courseCompleted) {
             enrollment.setStatus("COMPLETED");
             enrollment.setCompletedAt(LocalDateTime.now());
-            issueCertificateIfNotExist(enrollment.getId());
         }
         enrollmentRepository.save(enrollment);
+
+        if (courseCompleted) {
+            issueCertificateIfNotExist(enrollment);
+        }
     }
 
     // to delete an enrollment
@@ -118,6 +139,9 @@ public class EnrollmentService {
         if ("CANCELLED".equals(enrollment.getStatus())) {
             throw new ApiException("Enrollment is already cancelled");
         }
+        if("COMPLETED".equals(enrollment.getStatus())) {
+            throw new ApiException("Enrollment is already completed");
+        }
         enrollment.setStatus("CANCELLED");
         enrollmentRepository.save(enrollment);
     }
@@ -131,17 +155,37 @@ public class EnrollmentService {
     }
 
     // Helper method to generate and issue a unique completion certificate for an enrollment if it doesn't already exist.
-    private void issueCertificateIfNotExist(Integer enrollmentId) {
+    private void issueCertificateIfNotExist(Enrollment enrollment) {
 
-        if (certificateRepository.findByEnrollmentId(enrollmentId).isEmpty()) {
-
-            String certNum = "JISR-CERT-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
-
-            Certificate cert = new Certificate();
-            cert.setEnrollmentId(enrollmentId);
-            cert.setCertificateNumber(certNum);
-            cert.setIssuedAt(LocalDateTime.now());
-            certificateRepository.save(cert);
+        if (certificateRepository.findByEnrollmentId(enrollment.getId()).isPresent()) {
+            return;
         }
+
+        String certNum = "JISR-CERT-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+
+        Certificate cert = new Certificate();
+        cert.setEnrollmentId(enrollment.getId());
+        cert.setCertificateNumber(certNum);
+        cert.setIssuedAt(LocalDateTime.now());
+        certificateRepository.save(cert);
+
+        publishCertificateIssuedEvent(enrollment, cert);
+    }
+
+    // Helper method to notify the learner of a new certificate by resolving the recipient and course from the enrollment.
+    private void publishCertificateIssuedEvent(Enrollment enrollment, Certificate cert) {
+
+        User user = userRepository.findUserById(enrollment.getUserId());
+        Course course = courseRepository.findCourseById(enrollment.getCourseId());
+        if (user == null || course == null) {
+            return;
+        }
+
+        eventPublisher.publishEvent(new CertificateIssuedEvent(
+                user.getName(),
+                user.getEmail(),
+                course.getTitle(),
+                cert.getCertificateNumber(),
+                cert.getIssuedAt().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"))));
     }
 }
