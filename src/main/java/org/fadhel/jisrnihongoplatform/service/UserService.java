@@ -1,6 +1,7 @@
 package org.fadhel.jisrnihongoplatform.service;
 
 import lombok.RequiredArgsConstructor;
+import org.fadhel.jisrnihongoplatform.event.UserPhoneAddedEvent;
 import org.fadhel.jisrnihongoplatform.event.UserRegisteredEvent;
 import org.fadhel.jisrnihongoplatform.exception.ApiException;
 import org.fadhel.jisrnihongoplatform.model.User;
@@ -36,8 +37,15 @@ public class UserService {
     }
 
     // to add a user
+    // a phone number is mandatory at signup because the account activation welcome goes over WhatsApp
     @Transactional
     public void addUser(User user) {
+
+        String phone = user.getPhone() == null ? null : user.getPhone().trim();
+        if (phone == null || phone.isEmpty()) {
+            throw new ApiException("Phone number is required to register");
+        }
+        user.setPhone(phone);
 
         User savedUser = userRepository.save(user);
 
@@ -45,7 +53,8 @@ public class UserService {
                 savedUser.getName(),
                 savedUser.getEmail(),
                 savedUser.getJapaneseLevel(),
-                savedUser.getLearningGoal()));
+                savedUser.getLearningGoal(),
+                savedUser.getPhone()));
     }
 
     // to update a user
@@ -75,6 +84,29 @@ public class UserService {
     public List<User> getUsersByLevel(String level, Integer requestingAdminId) {
         adminService.verifyAdmin(requestingAdminId);
         return userRepository.findUsersByJapaneseLevel(level);
+    }
+
+    // Extra Endpoint: 14 to notify after phone number change through WhatsApp
+    @Transactional
+    public boolean updateUserPhone(Integer id, String phone) {
+
+        User existing = userRepository.findUserById(id);
+        if (existing == null) {
+            throw new ApiException("User not found");
+        }
+
+        String trimmed = phone == null ? null : phone.trim();
+        String newPhone = (trimmed == null || trimmed.isEmpty()) ? null : trimmed;
+
+        boolean changed = newPhone != null && !newPhone.equals(existing.getPhone());
+
+        if (changed) {
+            existing.setPhone(newPhone);
+            userRepository.save(existing);
+            eventPublisher.publishEvent(new UserPhoneAddedEvent(existing.getName(), newPhone));
+        }
+
+        return changed;
     }
 
 }

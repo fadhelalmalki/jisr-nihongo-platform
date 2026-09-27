@@ -44,4 +44,10 @@ public class User {
     @NotEmpty(message = "Learning goal cannot be empty")
     @Column(nullable = false)
     private String learningGoal;
+
+
+    // validated as E.164, which is the only format the WhatsApp gateway accepts
+    @Pattern(regexp = "^\\+[1-9]\\d{7,14}$", message = "Phone must be in E.164 format, for example +966512345678")
+    @Column(length = 16)
+    private String phone;
 }

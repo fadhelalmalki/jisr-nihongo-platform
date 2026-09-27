@@ -14,7 +14,7 @@
   <img src="https://img.shields.io/badge/Spring%20Boot-4.1.1-6DB33F?logo=spring&logoColor=white" alt="Spring Boot 4.1.1">
   <img src="https://img.shields.io/badge/MySQL-8-4479A1?logo=mysql&logoColor=white" alt="MySQL 8">
   <img src="https://img.shields.io/badge/OpenRouter-AI-6467F2?logo=openai&logoColor=white" alt="OpenRouter AI">
-  <img src="https://img.shields.io/badge/API-63%20endpoints-339933" alt="63 endpoints">
+  <img src="https://img.shields.io/badge/API-69%20endpoints-339933" alt="69 endpoints">
   <img src="https://img.shields.io/badge/License-Proprietary-unlicensed" alt="Proprietary License">
 </p>
 
@@ -37,6 +37,9 @@
 - [Prerequisites](#prerequisites)
 - [Getting Started](#getting-started)
 - [Configuration](#configuration)
+  - [Email notifications](#email-notifications)
+  - [WhatsApp notifications](#whatsapp-notifications)
+  - [About `ddl-auto=create-drop`](#about-ddl-autocreate-drop)
 - [API Reference](#api-reference)
 - [Testing with Postman](#testing-with-postman)
 - [License](#license)
@@ -66,6 +69,13 @@
 - Sent after the database transaction commits, on a background thread, so requests never block on SMTP
 - A delivery failure can never fail the originating API call
 
+**WhatsApp notifications** (UltraMsg)
+- Welcome message to the learner at registration, where a phone number is now mandatory
+- Confirmation message when a learner changes their number, sent to the **new** number only
+- Sent after the database transaction commits, on a background thread, so requests never block on the gateway
+- A gateway failure can never fail the originating API call
+- Off by default; requires a linked WhatsApp device. See [WhatsApp notifications](#whatsapp-notifications) for setup and limitations
+
 **Instructors**
 - Instructor profiles with a verified freelance teaching certificate number
 - Endpoint to retrieve a specific instructor's verified licence details
@@ -83,6 +93,11 @@
 - **Cultural etiquette guide** — key rules and vocabulary for a given topic
 - **Custom prompt generation** — send any prompt to the configured model
 - **Arabic–Japanese phrase bridge** — compare how Arabic and Japanese express the same concept
+- **Keigo converter** — rewrite a Japanese sentence as respectful (sonkeigo) and humble (kenjougo) register
+- **Kanji radical breakdown** — decompose a character into its component radicals and meanings
+- **JLPT study plan** — a structured multi-week plan with daily habits for a chosen level and focus
+- **Reading passage** — a short furigana-annotated text with translation and comprehension questions
+- **Lesson plan builder** — an instructor-facing lesson plan for a topic and JLPT level
 
 **Platform**
 - Uniform JSON responses and centralised error handling
@@ -100,10 +115,14 @@
 | Web | Spring WebMVC | 4.1.1 (managed) |
 | Persistence | Spring Data JPA / Hibernate | 4.1.1 (managed) |
 | Validation | Jakarta Bean Validation | 4.1.1 (managed) |
+| Templating | Thymeleaf (`spring-boot-starter-thymeleaf`) | 3.1.5.RELEASE (managed) |
+| Email | Gmail SMTP via `spring-boot-starter-mail` | 4.1.1 (managed) |
 | Database | MySQL | 8.x (`mysql-connector-j`, runtime) |
 | Boilerplate reduction | Lombok | 4.1.1 (managed) |
 | Build tool | Maven Wrapper | — |
-| HTTP client | Spring `RestClient` (to OpenRouter) | 4.1.1 (managed) |
+| HTTP client | Spring `RestClient` (to OpenRouter and UltraMsg) | 4.1.1 (managed) |
+
+**Tooling:** JetBrains IntelliJ IDEA for development, and DataGrip for database inspection and query work.
 
 ---
 
@@ -128,17 +147,20 @@ src/main/java/org/fadhel/jisrnihongoplatform/
 │   └── UserController.java
 ├── dto/
 │   ├── ApiResponse.java                 # { "message": "..." } envelope
-│   └── InstructorLicenseResponse.java   # instructor licence view
+│   ├── InstructorLicenseResponse.java   # instructor licence view
+│   └── PhoneUpdateRequest.java          # { "phone": "..." } body for the change-number route
 ├── exception/
 │   └── ApiException.java                # RuntimeException for business-rule violations
 ├── model/                               # JPA entities — 8 tables
 │   ├── Admin.java  Certificate.java  Course.java  Enrollment.java
 │   └── Instructor.java  Lesson.java  Review.java  User.java
 ├── config/
-│   └── AsyncConfig.java                   # @EnableAsync + the emailTaskExecutor thread pool
+│   ├── AsyncConfig.java                   # @EnableAsync + the emailTaskExecutor and whatsappTaskExecutor pools
+│   └── RestClientConfig.java              # shared RestClient.Builder for outbound HTTP
 ├── event/                                 # Records published by services after a successful write
 │   ├── CertificateIssuedEvent.java
 │   ├── EnrollmentCreatedEvent.java
+│   ├── UserPhoneAddedEvent.java
 │   └── UserRegisteredEvent.java
 ├── repository/                          # Spring Data JPA repositories (8)
 └── service/                             # Business logic + validation
@@ -152,7 +174,9 @@ src/main/java/org/fadhel/jisrnihongoplatform/
     ├── LessonService.java
     ├── OpenRouterService.java            # single OpenRouter chat-completions client
     ├── ReviewService.java
-    └── UserService.java
+    ├── UserService.java
+    ├── WhatsAppEventListener.java        # @TransactionalEventListener(AFTER_COMMIT) + @Async
+    └── WhatsAppService.java              # form-encoded UltraMsg delivery
 ```
 
 **Request flow**
@@ -203,6 +227,7 @@ erDiagram
         string password
         string japaneseLevel "N5|N4|N3|N2|N1|Beginner"
         string learningGoal
+        string phone "E.164, required at signup"
     }
 
     INSTRUCTOR {
@@ -381,7 +406,7 @@ curl -X POST http://localhost:8080/api/v1/courses \
 # 3. A learner (note the returned id)
 curl -X POST http://localhost:8080/api/v1/users \
   -H "Content-Type: application/json" \
-  -d '{"name":"Sara Ahmed","email":"sara@example.com","password":"secret123","japaneseLevel":"Beginner","learningGoal":"Pass the JLPT N5 exam within a year"}'
+  -d '{"name":"Sara Ahmed","email":"sara@example.com","password":"secret123","japaneseLevel":"Beginner","learningGoal":"Pass the JLPT N5 exam within a year","phone":"+966512345678"}'
 
 # 4. Enroll the learner
 curl -X POST http://localhost:8080/api/v1/enrollments \
@@ -424,6 +449,10 @@ All settings live in `src/main/resources/application.properties`. Spring Boot's 
 | `spring.mail.username` | `MAIL_USERNAME` | *(empty)* | Sending Gmail account — **required**, no default |
 | `spring.mail.password` | `MAIL_PASSWORD` | *(empty)* | **16-character Google App Password**, not the account password |
 | `spring.thymeleaf.cache` | `THYMELEAF_CACHE` | `false` | Caches parsed templates — enable in production |
+| `app.whatsapp.enabled` | `WHATSAPP_ENABLED` | `false` | Master switch for WhatsApp — **must be `true` or nothing is sent** |
+| `app.whatsapp.base-url` | `WHATSAPP_BASE_URL` | `https://api.ultramsg.com` | UltraMsg gateway host |
+| `app.whatsapp.instance-id` | `WHATSAPP_INSTANCE_ID` | *(empty)* | Gateway instance id — **required** |
+| `app.whatsapp.token` | `WHATSAPP_TOKEN` | *(empty)* | Gateway instance token — **required** |
 
 ### Email notifications
 
@@ -449,6 +478,54 @@ MAIL_PASSWORD=your-16-char-app-password ./mvnw spring-boot:run
 ```
 
 Templates live in `src/main/resources/templates/`. The logo is attached inline as `cid:jisrLogo` from `src/main/resources/static/images/logo.png`.
+
+### WhatsApp notifications
+
+A learner receives a WhatsApp welcome at two points, delivered through the [UltraMsg](https://docs.ultramsg.com/) gateway.
+
+| Event | Triggered by | Message |
+|---|---|---|
+| `UserRegisteredEvent` | `POST /api/v1/users` — **phone is mandatory** | *"Welcome … Your account is now active."* |
+| `UserPhoneAddedEvent` | `PUT /api/v1/users/{id}/phone` with a **new or changed** number | *"… Your phone number has been updated."* |
+
+`UserService` publishes these events inside its transactions; `WhatsAppEventListener` handles them with `@TransactionalEventListener(AFTER_COMMIT)` on a dedicated `whatsappTaskExecutor` pool.
+
+**A phone number is required to register**, but the two rejection paths return different messages. An absent or `null` number is caught by the service guard as `400 Phone number is required to register`. A blank or malformed number — `"   "`, `"966500000000"` — is caught earlier by `@Pattern` during bean validation, so it returns `400 Phone must be in E.164 format, for example +966512345678`. The service check exists as a backstop for internal callers that bypass validation; the entity deliberately does not use `@NotBlank`, so that `PUT /api/v1/users/{id}` is unaffected and accounts created before this rule existed still work.
+
+**No double sends.** A learner who registers with a number and then re-saves the same one gets nothing the second time, because the `UserPhoneAddedEvent` only fires when the number actually changes.
+
+```bash
+# registration welcome
+curl -X POST http://localhost:8080/api/v1/users \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Sara","email":"sara@example.com","password":"secret123","japaneseLevel":"N5","learningGoal":"Conversational fluency","phone":"+966512345678"}'
+
+# change number
+curl -X PUT http://localhost:8080/api/v1/users/1/phone \
+  -H "Content-Type: application/json" \
+  -d '{"phone":"+966500000000"}'
+```
+
+- **The channel is off unless you switch it on.** `app.whatsapp.enabled` defaults to `false`, so the listener bean is not created and nothing is sent. The registration endpoint still returns `201`.
+- **Numbers are validated as E.164** (`^\+[1-9]\d{7,14}$`) and stored with the `+`. The `+` is stripped on the wire, because the gateway documents numbers with a plus but only accepts bare digits.
+- **Gateway failures never fail your API call.** Exceptions are caught and logged; a missing token or instance id logs a warning and skips.
+- **The change-number body carries only `phone`.** A dedicated `PhoneUpdateRequest` DTO means a caller cannot overwrite `id`, `email` or `password` in the same request, and is not forced to resend the full user.
+- **The change endpoint reports whether anything was sent.** A changed number returns `{"message":"Phone number updated, confirmation message queued"}`; re-saving the same number returns `{"message":"Phone number unchanged, no message sent"}`. "Queued" is the honest word — the gateway is called asynchronously after commit, so `200` means accepted, not delivered.
+- **A well-formed number is not a verified number.** A typo at signup delivers the welcome to whoever actually owns that number.
+
+#### Gateway setup
+
+1. Create an UltraMsg account and **Add Instance**.
+2. In WhatsApp on the phone: **Settings → Linked devices → Link a device**, then scan the QR.
+3. Confirm the dashboard shows **Auth Status: `authenticated`**.
+4. Start the app with the instance id and token:
+
+```bash
+WHATSAPP_ENABLED=true \
+WHATSAPP_INSTANCE_ID=instance123 \
+WHATSAPP_TOKEN=your-token \
+./mvnw spring-boot:run
+```
 
 ### About `ddl-auto=create-drop`
 
@@ -479,8 +556,9 @@ Paths marked with a dagger (†) are **admin-only** and require a valid administ
 |---|---|---|---|
 | `GET` | `/api/v1/users` | List all registered users | Public |
 | `GET` | `/api/v1/users/{id}` | Fetch one user by ID | Public |
-| `POST` | `/api/v1/users` | Register a new user | Public |
+| `POST` | `/api/v1/users` | Register a new user (`phone` **required**, E.164) | Public |
 | `PUT` | `/api/v1/users/{id}` | Update a user | Public |
+| `PUT` | `/api/v1/users/{id}/phone` | Attach or change the WhatsApp number (body: `phone` only) | Public |
 | `DELETE` | `/api/v1/users/{id}` | Delete a user | Public |
 | `GET` | `/api/v1/users/level/{level}` | Filter users by Japanese level | † `?requestingAdminId=` |
 
@@ -489,7 +567,7 @@ Paths marked with a dagger (†) are **admin-only** and require a valid administ
 ```bash
 curl -X POST http://localhost:8080/api/v1/users \
   -H "Content-Type: application/json" \
-  -d '{"name":"Sara Ahmed","email":"sara@example.com","password":"secret123","japaneseLevel":"N5","learningGoal":"Conversational fluency"}'
+  -d '{"name":"Sara Ahmed","email":"sara@example.com","password":"secret123","japaneseLevel":"N5","learningGoal":"Conversational fluency","phone":"+966512345678"}'
 ```
 
 ### Instructors
@@ -602,6 +680,11 @@ All AI endpoints call OpenRouter using the free model router (`openrouter/free`)
 | `GET` | `/api/v1/ai/culture-guide` | `?topic=` | Three cultural etiquette rules with relevant vocabulary |
 | `POST` | `/api/v1/ai/generate` | `{"prompt": "..."}` | Send a custom prompt to the model |
 | `POST` | `/api/v1/ai/arabic-bridge` | `{"phrase": "..."}` | Compare an Arabic concept with its Japanese equivalent |
+| `POST` | `/api/v1/ai/keigo-converter` | `{"sentence": "..."}` | Rewrite a sentence as sonkeigo and kenjougo, with English translations and when to use each |
+| `GET` | `/api/v1/ai/kanji-radicals` | `?kanji=` | Break a character into its component radicals, symbols, and meanings |
+| `GET` | `/api/v1/ai/study-plan` | `?level=` *(default `N5`)*, `?weeks=` *(default `4`)*, `?focus=` *(default `grammar`)* | A structured study plan with weekly goals, daily habits, and practice strategies |
+| `GET` | `/api/v1/ai/reading-passage` | `?level=` *(default `N5`)*, `?topic=` *(default `daily life`)* | A ~100-word furigana-annotated passage with translation and comprehension questions |
+| `POST` | `/api/v1/ai/lesson-plan` | `{"topic": "...", "level": "N5"}` | An instructor-facing lesson plan; `level` is optional |
 
 ```bash
 curl "http://localhost:8080/api/v1/ai/explain-kanji?kanji=%E6%97%A5"
@@ -611,7 +694,7 @@ curl -X POST http://localhost:8080/api/v1/ai/arabic-bridge \
   -d '{"phrase":"أهلاً وسهلاً"}'
 ```
 
-Empty or missing `sentence`, `phrase`, and `prompt` values return HTTP 400.
+Empty or missing `sentence`, `phrase`, `prompt`, and `topic` values return HTTP 400. Note that AI endpoints use an `error` key rather than `message` on failure — see [Response reference](#response-reference).
 
 ---
 
@@ -692,8 +775,9 @@ curl -X POST http://localhost:8080/api/v1/instructors \
 | `200` | Read or update succeeded | The entity, or a JSON array of entities |
 | `201` | Resource created | `{"message": "..."}` |
 | `400` | Business-rule violation, validation failure, or unique-constraint violation | `{"message": "<the reason>"}` |
+| `400` | AI endpoint received a blank or missing parameter | `{"error": "<the reason>"}` |
 
-Every error uses the same shape, so a failing request can be diagnosed from the `message` field alone.
+Every non-AI error uses the same shape, so a failing request can be diagnosed from the `message` field alone. The AI endpoints are the one exception: they return `error`, not `message`.
 
 ---
 

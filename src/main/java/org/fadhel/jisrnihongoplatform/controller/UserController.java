@@ -4,6 +4,7 @@ package org.fadhel.jisrnihongoplatform.controller;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.fadhel.jisrnihongoplatform.dto.ApiResponse;
+import org.fadhel.jisrnihongoplatform.dto.PhoneUpdateRequest;
 import org.fadhel.jisrnihongoplatform.exception.ApiException;
 import org.fadhel.jisrnihongoplatform.model.User;
 import org.fadhel.jisrnihongoplatform.service.UserService;
@@ -54,5 +55,16 @@ public class UserController {
     @GetMapping("/level/{level}")
     public ResponseEntity<?> getUsersByLevel(@PathVariable String level, @RequestParam Integer requestingAdminId) {
         return ResponseEntity.status(200).body(userService.getUsersByLevel(level, requestingAdminId));
+    }
+
+    // Extra Endpoint: 14 to notify after phone number change through WhatsApp
+    @PutMapping("/{id}/phone")
+    public ResponseEntity<ApiResponse> updateUserPhone(@PathVariable Integer id,
+                                                       @Valid @RequestBody PhoneUpdateRequest request) {
+        boolean changed = userService.updateUserPhone(id, request.phone());
+
+        return ResponseEntity.status(200).body(new ApiResponse(changed
+                ? "Phone number updated, confirmation message queued"
+                : "Phone number unchanged, no message sent"));
     }
 }

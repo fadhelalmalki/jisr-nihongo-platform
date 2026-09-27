@@ -37,7 +37,7 @@ class EmailEventListenerIntegrationTest {
 
     @Test
     void shouldDeliverWelcomeEmailEvent() {
-        publish(new UserRegisteredEvent("Ahmed", "ahmed@example.com", "N5", "Pass JLPT N4"));
+        publish(new UserRegisteredEvent("Ahmed", "ahmed@example.com", "N5", "Pass JLPT N4", "+966512345678"));
 
         await().atMost(Duration.ofSeconds(5)).untilAsserted(() ->
                 verify(emailService).sendHtmlEmailWithLogo(
@@ -75,7 +75,7 @@ class EmailEventListenerIntegrationTest {
     void shouldNotDeliverBeforeTheTransactionCommits() {
         // rolled back, so no listener should ever run for it
         new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
-            eventPublisher.publishEvent(new UserRegisteredEvent("Ghost", "ghost@example.com", "N5", "Nope"));
+            eventPublisher.publishEvent(new UserRegisteredEvent("Ghost", "ghost@example.com", "N5", "Nope", "+966500000000"));
             status.setRollbackOnly();
         });
 
