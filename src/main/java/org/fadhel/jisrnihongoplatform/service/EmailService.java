@@ -72,7 +72,7 @@ public class EmailService {
 
     // to attach the platform logo as a cid reference so email clients render it without a public URL
     private void attachLogo(MimeMessageHelper helper) {
-        ClassPathResource logo = new ClassPathResource("static/images/logo.jpg");
+        ClassPathResource logo = new ClassPathResource("static/images/logo.png");
         if (!logo.exists()) {
             log.warn("Logo not found on the classpath, sending the email without it");
             return;

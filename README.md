@@ -448,7 +448,7 @@ To send real email, obtain a Google App Password from the Gmail account (Google 
 MAIL_PASSWORD=your-16-char-app-password ./mvnw spring-boot:run
 ```
 
-Templates live in `src/main/resources/templates/`. The logo is attached inline as `cid:jisrLogo` from `src/main/resources/static/images/logo.jpg`.
+Templates live in `src/main/resources/templates/`. The logo is attached inline as `cid:jisrLogo` from `src/main/resources/static/images/logo.png`.
 
 ### About `ddl-auto=create-drop`
 
