@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Enrollment Confirmed - Jisr Nihongo Platform</title>
+    <style>
+        body { font-family: 'Segoe UI', Arial, sans-serif; background-color: #f1f5f9; margin: 0; padding: 20px; }
+        .card { max-width: 580px; margin: 0 auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.08); }
+        .header { background: #ffffff; text-align: center; padding: 25px; border-bottom: 3px solid #e2e8f0; }
+        .logo { max-width: 260px; height: auto; }
+        .content { padding: 30px; color: #1e293b; line-height: 1.6; }
+        .course-box { background: #eff6ff; border: 1px solid #bfdbfe; padding: 20px; border-radius: 10px; margin: 20px 0; }
+        .footer { background: #f8fafc; text-align: center; padding: 15px; font-size: 12px; color: #64748b; }
+    </style>
+</head>
+<body>
+<div class="card">
+    <div class="header">
+        <img src="cid:jisrLogo" alt="Jisr Nihongo Platform" class="logo" />
+    </div>
+    <div class="content">
+        <h2>受講登録完了！ Enrollment Confirmed</h2>
+        <p>Konnichiwa <strong th:text="${userName}">Student</strong>,</p>
+        <p>You have successfully enrolled in a new course!</p>
+        <div class="course-box">
+            <h3 th:text="${courseTitle}" style="margin: 0 0 10px 0; color: #1d4ed8;">Japanese N5 Grammar Essentials</h3>
+            <p style="margin: 4px 0; font-size: 14px; color: #334155;"><strong>Instructor:</strong> <span th:text="${instructorName}">Sensei</span></p>
+            <p style="margin: 4px 0; font-size: 14px; color: #334155;"><strong>Level:</strong> <span th:text="${courseLevel}">N5</span></p>
+        </div>
+        <p>You can now access your lessons and start learning!</p>
+    </div>
+    <div class="footer">
+        © 2026 Jisr 日本語プラットフォーム | Connecting Japanese teachers with learners in Saudi Arabia
+    </div>
+</div>
+</body>
+</html>

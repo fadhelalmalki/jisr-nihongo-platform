@@ -3,17 +3,13 @@ package org.fadhel.jisrnihongoplatform.service;
 
 import lombok.RequiredArgsConstructor;
 import org.fadhel.jisrnihongoplatform.exception.ApiException;
-import org.fadhel.jisrnihongoplatform.model.Certificate;
-import org.fadhel.jisrnihongoplatform.model.Enrollment;
-import org.fadhel.jisrnihongoplatform.model.User;
-import org.fadhel.jisrnihongoplatform.repository.CertificateRepository;
-import org.fadhel.jisrnihongoplatform.repository.CourseRepository;
-import org.fadhel.jisrnihongoplatform.repository.EnrollmentRepository;
-import org.fadhel.jisrnihongoplatform.repository.UserRepository;
+import org.fadhel.jisrnihongoplatform.model.*;
+import org.fadhel.jisrnihongoplatform.repository.*;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -24,6 +20,8 @@ public class EnrollmentService {
     private final UserRepository userRepository;
     private final CourseRepository courseRepository;
     private final CertificateRepository certificateRepository;
+    private final InstructorRepository instructorRepository;
+    private final EmailService emailService;
     private final AdminService adminService;
 
     // to get all enrollments
@@ -44,10 +42,14 @@ public class EnrollmentService {
 
     // to add an enrollment
     public void enrollUser(Enrollment enrollment) {
-        if (userRepository.findUserById(enrollment.getUserId()) == null) {
+
+        User user = userRepository.findUserById(enrollment.getUserId());
+        if (user == null) {
             throw new ApiException("User not found");
         }
-        if (courseRepository.findCourseById(enrollment.getCourseId()) == null) {
+
+        Course course = courseRepository.findCourseById(enrollment.getCourseId());
+        if (course == null) {
             throw new ApiException("Course not found");
         }
         if (enrollmentRepository.findByUserIdAndCourseId(enrollment.getUserId(), enrollment.getCourseId()).isPresent()) {
@@ -57,6 +59,25 @@ public class EnrollmentService {
         enrollment.setProgress(0);
         enrollment.setEnrolledAt(LocalDateTime.now());
         enrollmentRepository.save(enrollment);
+
+        // Fetch Instructor for email display
+        Instructor instructor = instructorRepository.findInstructorById(course.getInstructorId());
+        String instructorName = (instructor != null) ? instructor.getName() : "Jisr Sensei";
+
+        // Send Course Enrollment Email
+        Map<String, Object> variables = Map.of(
+                "userName", user.getName(),
+                "courseTitle", course.getTitle(),
+                "instructorName", instructorName,
+                "courseLevel", course.getLevel()
+        );
+
+        emailService.sendHtmlEmailWithLogo(
+                user.getEmail(),
+                "Course Registration Complete！ Enrollment Confirmed: " + course.getTitle(),
+                "enrollment-email",
+                variables
+        );
     }
 
     // to update an enrollment
@@ -130,12 +151,36 @@ public class EnrollmentService {
 
     // Helper method to generate and issue a unique completion certificate for an enrollment if it doesn't already exist.
     private void issueCertificateIfNotExist(Integer enrollmentId) {
+
         if (certificateRepository.findByEnrollmentId(enrollmentId).isEmpty()) {
+
+            String certNum = "JISR-CERT-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+
             Certificate cert = new Certificate();
             cert.setEnrollmentId(enrollmentId);
-            cert.setCertificateNumber("JISR-CERT-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase());
+            cert.setCertificateNumber(certNum);
             cert.setIssuedAt(LocalDateTime.now());
             certificateRepository.save(cert);
+
+            Enrollment enrollment = enrollmentRepository.findEnrollmentById(enrollmentId);
+            User user = userRepository.findUserById(enrollment.getUserId());
+            Course course = courseRepository.findCourseById(enrollment.getCourseId());
+
+            if (user != null && course != null) {
+                // Send Certificate Email
+                Map<String, Object> variables = Map.of(
+                        "userName", user.getName(),
+                        "courseTitle", course.getTitle(),
+                        "certificateNumber", certNum
+                );
+
+                emailService.sendHtmlEmailWithLogo(
+                        user.getEmail(),
+                        "おめでとうございます！ Your Course Certificate: " + certNum,
+                        "certificate-email",
+                        variables
+                );
+            }
         }
     }
 }

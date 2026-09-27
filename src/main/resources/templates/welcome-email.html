@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Welcome - Jisr Nihongo Platform</title>
+    <style>
+        body { font-family: 'Segoe UI', Arial, sans-serif; background-color: #f1f5f9; margin: 0; padding: 20px; }
+        .card { max-width: 580px; margin: 0 auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.08); }
+        .header { background: #ffffff; text-align: center; padding: 25px; border-bottom: 3px solid #e2e8f0; }
+        .logo { max-width: 260px; height: auto; }
+        .content { padding: 30px; color: #1e293b; line-height: 1.6; }
+        .badge-box { background: #f8fafc; border-left: 4px solid #dc2626; padding: 15px 20px; margin: 20px 0; border-radius: 0 8px 8px 0; }
+        .footer { background: #f8fafc; text-align: center; padding: 15px; font-size: 12px; color: #64748b; }
+    </style>
+</head>
+<body>
+<div class="card">
+    <div class="header">
+        <img src="cid:jisrLogo" alt="Jisr Nihongo Platform" class="logo" />
+    </div>
+    <div class="content">
+        <h2>ようこそ！ Welcome to Jisr Nihongo Platform</h2>
+        <p>Konnichiwa <strong th:text="${userName}">Student</strong>,</p>
+        <p>Thank you for registering! Your account is active and you are ready to start connecting with top Japanese instructors in Saudi Arabia.</p>
+        <div class="badge-box">
+            <p style="margin: 0; font-size: 14px; color: #64748b;">Starting Level:</p>
+            <h3 th:text="${japaneseLevel}" style="margin: 4px 0 10px 0; color: #0f172a;">JLPT N5</h3>
+            <p style="margin: 0; font-size: 14px; color: #64748b;">Learning Goal:</p>
+            <p th:text="${learningGoal}" style="margin: 4px 0 0 0; font-weight: 600; color: #0f172a;">Master JLPT N5 Grammar</p>
+        </div>
+        <p> 頑張ってください (Ganbatte kudasai)!</p>
+    </div>
+    <div class="footer">
+        © 2026 Jisr 日本語プラットフォーム | Connecting Japanese teachers with learners in Saudi Arabia
+    </div>
+</div>
+</body>
+</html>
